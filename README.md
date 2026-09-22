@@ -6,6 +6,8 @@ Humans set a **mandate** (target, walkaway, concessions). A counterparty agent r
 
 **Live demo:** https://dealtable-webmcp.vercel.app
 
+**Demo video:** https://youtu.be/-zPTvL9Deso
+
 ---
 
 ## Quick start (judges)
@@ -53,8 +55,9 @@ Registered via `document.modelContext.registerTool` in `src/lib/webmcp.js`:
 ## Stack
 
 - Vite + React + Tailwind
-- In-browser session store (no backend / no API key for demo)
+- In-browser session store
 - Rule-based counterparty engine (`src/lib/counterpartyEngine.js`)
+- Live market comps via Tavily (`POST /api/market`, key server-side only)
 - Deployed on Vercel
 
 ---
@@ -67,14 +70,15 @@ Registered via `document.modelContext.registerTool` in `src/lib/webmcp.js`:
 | [docs/QA.md](docs/QA.md) | Manual test checklist |
 | [docs/DEVPOST_CHECKLIST.md](docs/DEVPOST_CHECKLIST.md) | Submission checklist |
 | [docs/VIDEO_SCRIPT.md](docs/VIDEO_SCRIPT.md) | Recorded demo script |
+| [docs/HACKATHON_PLAN.md](docs/HACKATHON_PLAN.md) | Nebius × NVIDIA DealTable v2 crib sheet |
 
 ---
 
 ## Honest scope (hackathon build)
 
-- Counterparty is **rule-based** (not LLM) — WebMCP integration is the **external advisor** bridge.
+- Counterparty replies are still **rule-based**. Market comps are a live Tavily search shown beside that reply.
 - Session state is **in-browser only** (refresh resets).
-- Next iteration: rules-led LLM counterparty, persistence, document parse.
+- Next: Nemotron on Token Factory cites those comps. The walkaway gate stays in front of the model.
 
 ---
 

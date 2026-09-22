@@ -4,6 +4,7 @@ import {
   ArrowRight,
   BarChart3,
   Building2,
+  ExternalLink,
   HandCoins,
   Lightbulb,
   Paperclip,
@@ -27,6 +28,41 @@ import { useDeal } from '../lib/useDeal.js'
 function formatPrice(deal, value) {
   if (deal.unit) return `${deal.currency}${value}${deal.unit}`
   return `${deal.currency}${Number(value).toLocaleString()}`
+}
+
+function MarketCheck({ market }) {
+  if (!market) return null
+
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs text-slate-700">
+      <div className="font-mono text-[10px] font-medium uppercase tracking-wide text-neutral">Market check · Tavily</div>
+      {market.status === 'loading' && <p className="mt-2 text-neutral">Searching live comps…</p>}
+      {market.error && (
+        <p className="mt-2 text-amber-800">
+          {market.error}. The negotiation continues. The counterparty price is still the on-page rules.
+        </p>
+      )}
+      {market.query && !market.error && <p className="mt-2 text-neutral">{market.query}</p>}
+      {market.sources?.length > 0 && (
+        <ul className="mt-2 space-y-2">
+          {market.sources.map((source) => (
+            <li key={source.url}>
+              <a
+                href={source.url}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 font-medium text-primary hover:underline"
+              >
+                {source.title}
+                <ExternalLink className="h-3 w-3" strokeWidth={1.5} />
+              </a>
+              {source.content && <p className="mt-0.5 leading-relaxed text-neutral">{source.content}</p>}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
 }
 
 function MessageBubble({ message }) {
@@ -274,7 +310,7 @@ function AdvisorRail({ advisor, audit, deal, persona, customScenario }) {
 }
 
 export default function Hub() {
-  const { deal, messages, personaId, customScenario, advisor, audit, status } = useDeal()
+  const { deal, messages, personaId, customScenario, advisor, audit, status, market } = useDeal()
   const persona = personaId ? getPersona(personaId) : null
   const counterpartyOrg = customScenario?.counterparty || persona?.org || 'Counterparty Agent'
   const [input, setInput] = useState('')
@@ -347,6 +383,7 @@ export default function Hub() {
                 </button>
               </div>
             )}
+            <MarketCheck market={market} />
             {messages.length === 0 && (
               <div className="rounded-lg bg-indigo-50 px-4 py-2.5 text-center text-xs text-indigo-700">
                 Negotiation initiated. Context loaded: Previous lease history, current market comps.

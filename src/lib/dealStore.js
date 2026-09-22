@@ -49,9 +49,10 @@ function initialState() {
     hitlOpen: null,
     webmcpReady: false,
     liveTools: [
-      { id: 'comps', label: '@ querying market_comps...', status: 'running' },
+      { id: 'comps', label: '@ market comps via Tavily', status: 'idle' },
       { id: 'sentiment', label: '@ analyzing sentiment...', status: 'done' },
     ],
+    market: null,
     deal: null,
     messages: [],
     advisor: computeAdvisor(scenarioToDeal(getScenario('lease')), getPersona('aggressive_landlord')),
@@ -311,10 +312,92 @@ export function startNegotiation() {
       ],
     }),
   )
+  loadMarket()
 }
 
 export function setRoute(route) {
   setState({ route })
+}
+
+let marketRequest = 0
+
+function loadMarket() {
+  const deal = state.deal
+  if (!deal) return
+  const requestId = ++marketRequest
+  setState((s) => ({
+    ...s,
+    market: { status: 'loading', query: '', sources: [], error: null },
+    liveTools: s.liveTools.map((tool) =>
+      tool.id === 'comps' ? { ...tool, status: 'running', label: '@ querying market comps via Tavily...' } : tool,
+    ),
+  }))
+
+  fetch('/api/market', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      scenario: deal.scenario,
+      title: deal.title,
+    }),
+  })
+    .then(async (res) => {
+      const data = await res.json().catch(() => ({}))
+      return { ok: res.ok, data }
+    })
+    .then(({ ok, data }) => {
+      if (requestId !== marketRequest) return
+      const sources = Array.isArray(data.sources) ? data.sources : []
+      const error = ok ? null : data.error || 'Market search failed'
+      setState((s) =>
+        withAdvisor({
+          ...s,
+          market: {
+            status: error ? 'error' : 'ready',
+            query: data.query || '',
+            sources,
+            error,
+          },
+          liveTools: s.liveTools.map((tool) =>
+            tool.id === 'comps'
+              ? {
+                  ...tool,
+                  status: error ? 'error' : 'done',
+                  label: error
+                    ? '@ market comps unavailable'
+                    : `@ market comps via Tavily (${sources.length} sources)`,
+                }
+              : tool,
+          ),
+          audit: [
+            ...s.audit,
+            audit(
+              error ? 'WARNING' : 'TOOL_CALL',
+              'tavily_search',
+              error || data.query || 'Market comps loaded',
+              {
+                agent: 'Tavily',
+                json: {
+                  query: data.query || null,
+                  sources: sources.map((source) => ({ title: source.title, url: source.url })),
+                  error,
+                },
+              },
+            ),
+          ],
+        }),
+      )
+    })
+    .catch(() => {
+      if (requestId !== marketRequest) return
+      setState((s) => ({
+        ...s,
+        market: { status: 'error', query: '', sources: [], error: 'Market search failed' },
+        liveTools: s.liveTools.map((tool) =>
+          tool.id === 'comps' ? { ...tool, status: 'error', label: '@ market comps unavailable' } : tool,
+        ),
+      }))
+    })
 }
 
 function appendCounterparty(reply) {

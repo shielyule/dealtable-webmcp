@@ -146,11 +146,21 @@ export default function Advisor() {
               <Sparkles className="h-4 w-4 text-primary" strokeWidth={1.5} />
               Live Agent Tools
             </div>
-            <p className="mb-2 text-[11px] text-neutral">Background checks the advisor would run (simulated for demo).</p>
+            <p className="mb-2 text-[11px] text-neutral">
+              Market comps are a live Tavily search when the negotiation starts. Sentiment is still a demo label.
+            </p>
             <ul className="space-y-2">
               {liveTools.map((tool) => (
                 <li key={tool.id} className="flex items-center gap-2 font-mono text-xs text-neutral">
-                  {tool.status === 'running' ? <span className="h-2 w-2 animate-pulse rounded-full bg-secondary" /> : <span className="text-secondary">✓</span>}
+                  {tool.status === 'running' ? (
+                    <span className="h-2 w-2 animate-pulse rounded-full bg-secondary" />
+                  ) : tool.status === 'error' ? (
+                    <span className="text-amber-600">!</span>
+                  ) : tool.status === 'idle' ? (
+                    <span className="text-slate-300">·</span>
+                  ) : (
+                    <span className="text-secondary">✓</span>
+                  )}
                   {tool.label}
                 </li>
               ))}
