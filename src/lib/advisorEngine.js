@@ -1,10 +1,6 @@
 /** Derive advisor telemetry from live deal state — no LLM required for demo. */
 
-function formatAmount(deal, value) {
-  const n = Number(value)
-  if (deal.unit) return `${deal.currency}${n}${deal.unit}`
-  return `${deal.currency}${n.toLocaleString()}`
-}
+import { formatMoney as formatAmount } from './formatMoney.js'
 
 function gapPct(deal) {
   const span = deal.currentAsk - deal.targetPrice
@@ -46,6 +42,24 @@ function winWinsForScenario(deal) {
     return [
       { id: 'equity', title: 'Equity Top-Up', tag: 'High Value', body: 'Accept lower base if RSU grant bridges to target TC.' },
       { id: 'signing', title: 'Signing Bonus Bridge', tag: 'Low Cost', body: 'One-time signing payment to close the gap this year.' },
+    ]
+  }
+  if (deal.scenario === 'usedcar') {
+    return [
+      { id: 'warranty', title: 'Warranty Months Trade', tag: 'High Value', body: 'Accept a slightly higher OTR if they extend warranty and include a service.' },
+      { id: 'cash', title: 'Cash / No-Finance Cut', tag: 'Low Cost', body: 'Ask for a cash discount in exchange for skipping their finance product.' },
+    ]
+  }
+  if (deal.scenario === 'renovation') {
+    return [
+      { id: 'phase', title: 'Phase the Rooms', tag: 'High Value', body: 'Do kitchen now, bath later — lock today’s rate on phase one only.' },
+      { id: 'supply', title: 'Client-Supply Appliances', tag: 'Low Cost', body: 'You buy white goods; they cut labour/materials on the quote.' },
+    ]
+  }
+  if (deal.scenario === 'flatbuy') {
+    return [
+      { id: 'chain', title: 'Clean Chain Premium', tag: 'High Value', body: 'Offer proof of funds and fast exchange in return for price movement.' },
+      { id: 'fixtures', title: 'Fixtures & Timing Trade', tag: 'Low Cost', body: 'Include agreed fixtures or a flexible completion date instead of cash only.' },
     ]
   }
   return [

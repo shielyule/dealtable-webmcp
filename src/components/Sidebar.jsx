@@ -1,5 +1,5 @@
 import clsx from 'clsx'
-import { Brain, HelpCircle, LogOut, MessageSquare, Plus, ScrollText } from 'lucide-react'
+import { BookOpen, Brain, MessageSquare, Plus, ScrollText } from 'lucide-react'
 import Logo from './Logo.jsx'
 import { goHome, setRoute } from '../lib/dealStore.js'
 
@@ -22,13 +22,13 @@ export default function Sidebar({ route, status }) {
       <button
         type="button"
         onClick={() => goHome()}
-        title="Home — back to start"
+        title="Home — pick a scenario"
         className="flex items-center gap-3 px-5 py-5 text-left transition hover:bg-slate-50"
       >
         <Logo className="h-7 w-7" />
         <div>
           <div className="text-sm font-bold text-slate-900">DealTable</div>
-          <div className="text-xs text-neutral">WebMCP Negotiation · Home</div>
+          <div className="text-xs text-neutral">Practice negotiation room</div>
         </div>
       </button>
 
@@ -71,18 +71,16 @@ export default function Sidebar({ route, status }) {
       <div className="space-y-1 border-t border-slate-100 px-3 py-4">
         <button
           type="button"
-          onClick={() => goHome()}
-          className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm text-neutral hover:bg-slate-50 hover:text-slate-800"
+          onClick={() => setRoute('playbook')}
+          className={clsx(
+            'flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm transition',
+            route === 'playbook'
+              ? 'bg-indigo-50 font-medium text-primary'
+              : 'text-neutral hover:bg-slate-50 hover:text-slate-800',
+          )}
         >
-          <HelpCircle className="h-4 w-4" strokeWidth={1.5} />
-          Home / Scenarios
-        </button>
-        <button
-          type="button"
-          className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm text-neutral hover:bg-slate-50 hover:text-slate-800"
-        >
-          <LogOut className="h-4 w-4" strokeWidth={1.5} />
-          Logout
+          <BookOpen className="h-4 w-4" strokeWidth={1.5} />
+          The Art of Negotiation
         </button>
       </div>
     </aside>

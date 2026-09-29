@@ -1,36 +1,47 @@
 import clsx from 'clsx'
 import { ArrowRight, Wrench } from 'lucide-react'
-import Logo from '../components/Logo.jsx'
+import NegotiationPlaybook from '../components/NegotiationPlaybook.jsx'
 import { SCENARIOS, selectScenario, setRoute } from '../lib/dealStore.js'
 
-const ORDER = ['lease', 'freelance', 'salary', 'vendor', 'residential', 'insurance']
+const ORDER = [
+  'lease',
+  'freelance',
+  'salary',
+  'vendor',
+  'residential',
+  'insurance',
+  'usedcar',
+  'renovation',
+  'flatbuy',
+]
 
 export default function Entrance() {
   return (
     <div className="mx-auto max-w-6xl px-6 py-10">
-      <div className="mb-8 rounded-xl border border-indigo-100 bg-white p-6 shadow-card">
+      <div className="mb-6 rounded-xl border border-indigo-100 bg-white p-6 shadow-card">
         <h1 className="text-xl font-bold text-slate-900">Welcome to DealTable</h1>
         <p className="mt-2 text-sm leading-relaxed text-neutral">
-          A practice negotiation room where <strong>you</strong> set the rules, a <strong>counterparty agent</strong>{' '}
-          role-plays the other side, and <strong>ChatGPT</strong> (optional) advises via WebMCP tools.
+          A practice negotiation room: you set the mandate, a counterparty agent role-plays the other side, and
+          optional ChatGPT advice plugs in via WebMCP. Finish with handoff docs you can refine for a real talk.
         </p>
-        <ol className="mt-4 space-y-2 text-sm text-slate-700">
+        <ol className="mt-4 grid gap-2 text-sm text-slate-700 sm:grid-cols-2">
           <li>
-            <strong>1. Pick a scenario</strong> — lease, salary, insurance claim, etc. This is the situation you want
-            to roleplay.
+            <strong>1. Scenario</strong> — pick (or build) the situation to rehearse.
           </li>
           <li>
-            <strong>2. Set your Mandate</strong> — your Mandate is basically the scenario rules: target price, walkaway
-            limit, and how much you&apos;ll concede. Think of it as your briefing before the meeting.
+            <strong>2. Mandate</strong> — target, walkaway, concession % before you enter the room.
           </li>
           <li>
-            <strong>3. Negotiate</strong> — chat, counter, accept. The counterparty responds. The advisor panel updates.
+            <strong>3. Negotiate</strong> — counter, hold, accept; Advisor surfaces win-wins.
           </li>
           <li>
-            <strong>4. Human approval (HITL)</strong> — if an offer crosses your walkaway, the app pauses and asks you
-            to Approve or Reject. No agent can bypass that.
+            <strong>4. HITL &amp; handoffs</strong> — walkaway pauses for you; Summary writes it down.
           </li>
         </ol>
+      </div>
+
+      <div className="mb-8">
+        <NegotiationPlaybook variant="embed" />
       </div>
 
       <h2 className="mb-6 text-center text-2xl font-bold text-slate-900">Choose your negotiation</h2>

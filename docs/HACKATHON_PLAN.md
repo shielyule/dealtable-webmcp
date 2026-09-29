@@ -4,13 +4,11 @@ DealTable v2 enters the [Nebius × NVIDIA Global AI Hackathon](https://nebiusglo
 
 Must ship: a live call to Nebius Token Factory using Nemotron, and a live Tavily search on the negotiation path.
 
-
 ## Where we are
 
-Devpost registration is done. Tavily account is done (1,000 credits). The CLI on this machine is signed in. Nebius Builder Program application is in review (they said about two business days). Token Factory credits are still outstanding. Do not pay the AI Cloud $25 deposit.
+Devpost registration is done. Tavily and Nebius Token Factory keys are in `.env.local` (gitignored). Model: `nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B` via `https://api.tokenfactory.nebius.com/v1/`. Do not pay the AI Cloud $25 deposit.
 
-The negotiation screen now calls `POST /api/market` when a session starts. The key belongs in `.env.local` as `TAVILY_API_KEY` (gitignored) and, for the live site, in Vercel env. Do not paste the key into chat.
-
+The negotiation screen calls `POST /api/market` on start and `POST /api/counterparty` on each turn (Tavily comps, then Nemotron). Keys never go in the client.
 
 ## Your next steps
 
@@ -54,14 +52,14 @@ Before this window the counterparty was `counterpartyReply()` in `src/lib/counte
 ### Requirements checklist
 
 - [x] Join the hackathon on Devpost.
-- [ ] Token Factory credits: activation code `NEBIUS-DEVPOST-GLOBAL26` on the [resources page](https://nebiusglobalaihackathon.devpost.com/resources).
-- [ ] Nebius Builders Program (second $25, and Tavily credits). No personal card on Tavily unless this path does not issue a key.
+- [x] Token Factory credits: activation code `NEBIUS-DEVPOST-GLOBAL26` on the [resources page](https://nebiusglobalaihackathon.devpost.com/resources).
+- [x] Nebius Builders Program (second $25, and Tavily credits). No personal card on Tavily unless this path does not issue a key.
 - [x] Tavily API key in hand (1,000 credits). Put it in `.env.local` as `TAVILY_API_KEY`. Not in git, not in chat.
-- [ ] Live `POST` to Token Factory, key only in the server function: `https://api.tokenfactory.us-central1.nebius.com/v1/` with Nemotron Nano or Super.
-- [ ] Live `POST https://api.tavily.com/search` from that same server function, on the negotiation path (see below). Key only on the server. Header: `Authorization: Bearer $TAVILY_API_KEY`.
+- [x] Live `POST` to Token Factory, key only in the server function: `https://api.tokenfactory.nebius.com/v1/` with Nemotron Nano (`nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B`).
+- [x] Live `POST https://api.tavily.com/search` from that same server function, on the negotiation path (see below). Key only on the server. Header: `Authorization: Bearer $TAVILY_API_KEY`.
 - [ ] Public repo, MIT license visible in the GitHub About line. README says how to run, and where Nemotron, Token Factory, and Tavily are called.
 - [ ] Live demo URL, free for judges through mid-December.
-- [ ] YouTube video under 3 minutes, public, no copyrighted music. Show a Tavily-backed market line in the counterparty reply, then the walkaway modal blocking a low offer.
+- [ ] YouTube video under 3 minutes, public, no copyrighted music. Show a Tavily-backed market line in the counterparty reply, then the walkaway modal blocking a low offer. **Use the v1 lessons + beat sheet in [`VIDEO_V2.md`](./VIDEO_V2.md)** (problem-first, first 45s = problem + one live proof, visuals then VO).
 - [ ] Written “what changed” note on the form.
 - [ ] Token Factory feedback section filled in.
 - [ ] English throughout.
@@ -128,3 +126,9 @@ Equal weight. Ties break in this order:
 ### Out of scope for this entry
 
 PDF parsing, a persistence database, mobile, multi-user, Nebius Serverless Endpoints (encouraged by the track, not required). Token Factory plus the Vercel function is the deploy.
+
+### Shelf — DealTable v3 (circle back after Nebius submit)
+
+**Zero-emotion sealed mediation:** each party privately uploads walk-away, priorities, and concessions into a sealed sandbox; an agent finds Pareto overlap and only reveals terms at binding equilibrium. Not for this hackathon. Revisit after 30 Oct.
+
+**Multi-advisor picker:** Setup already lists ChatGPT / Claude / Gemini / Other; only ChatGPT is enabled for this entry. Wire the others when WebMCP (or equivalent) exists for each.

@@ -2,11 +2,13 @@ import clsx from 'clsx'
 import { AlertTriangle, Bot, Clock, Play, Sparkles } from 'lucide-react'
 import HelpTip from '../components/HelpTip.jsx'
 import { getPersona, proposeWinWinTerm, sendInstruction, setRoute } from '../lib/dealStore.js'
+import { formatMoney } from '../lib/formatMoney.js'
 import { useDeal } from '../lib/useDeal.js'
 
 export default function Advisor() {
-  const { advisor, liveTools, personaId, customScenario } = useDeal()
+  const { advisor, deal, liveTools, personaId, customScenario } = useDeal()
   const persona = personaId ? getPersona(personaId) : null
+  const currency = deal?.currency || '$'
 
   const handlePropose = (term) => {
     setRoute('hub')
@@ -71,8 +73,12 @@ export default function Advisor() {
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-card">
               <div className="font-mono text-xs font-medium uppercase tracking-wide text-neutral">Concession headroom</div>
-              <div className="mt-2 text-3xl font-bold text-slate-900">${advisor.concessionRemaining.toLocaleString()}</div>
-              <p className="mt-1 text-xs text-neutral">Estimated room before hard limit (${advisor.hardLimit.toLocaleString()}).</p>
+              <div className="mt-2 text-3xl font-bold text-slate-900">
+                {formatMoney({ currency }, advisor.concessionRemaining)}
+              </div>
+              <p className="mt-1 text-xs text-neutral">
+                Estimated room before hard limit ({formatMoney({ currency }, advisor.hardLimit)}).
+              </p>
             </div>
             <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-card">
               <div className="font-mono text-xs font-medium uppercase tracking-wide text-neutral">Key Motivator</div>

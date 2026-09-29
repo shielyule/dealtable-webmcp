@@ -2,7 +2,17 @@ import { useState } from 'react'
 import { ArrowLeft, ArrowRight } from 'lucide-react'
 import { SCENARIOS, setRoute, startCustomScenario } from '../lib/dealStore.js'
 
-const TEMPLATE_ORDER = ['lease', 'freelance', 'salary', 'vendor', 'residential', 'insurance']
+const TEMPLATE_ORDER = [
+  'lease',
+  'freelance',
+  'salary',
+  'vendor',
+  'residential',
+  'insurance',
+  'usedcar',
+  'renovation',
+  'flatbuy',
+]
 
 export default function CustomScenario() {
   const [templateId, setTemplateId] = useState('freelance')

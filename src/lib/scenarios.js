@@ -1,6 +1,6 @@
-import { Building2, Briefcase, DollarSign, Home, Package, Shield } from 'lucide-react'
+import { Building2, Briefcase, Car, DollarSign, Hammer, Home, KeyRound, Package, Shield } from 'lucide-react'
 
-/** Predefined negotiation scenarios — each bundles deal defaults + counterparty persona. */
+/** Predefined negotiation scenarios — defaults are curated low-end market anchors for demos (not live Tavily). */
 export const SCENARIOS = {
   lease: {
     id: 'lease',
@@ -9,6 +9,7 @@ export const SCENARIOS = {
     icon: Building2,
     tag: 'Most demo-ready',
     personaId: 'aggressive_landlord',
+    side: 'buyer',
     primaryGoal: 'Minimize rent escalation',
     sessionId: 'LN-892-NY',
     unit: '/sqft',
@@ -31,6 +32,7 @@ export const SCENARIOS = {
     icon: Briefcase,
     tag: 'Solo builder friendly',
     personaId: 'flexible_freelancer',
+    side: 'buyer',
     primaryGoal: 'Protect day rate',
     sessionId: 'NEG-892-A',
     unit: '',
@@ -53,6 +55,7 @@ export const SCENARIOS = {
     icon: DollarSign,
     tag: 'High relatability',
     personaId: 'rigid_recruiter',
+    side: 'seller',
     primaryGoal: 'Maximize total compensation',
     sessionId: 'SAL-441-LDN',
     unit: '',
@@ -75,6 +78,7 @@ export const SCENARIOS = {
     icon: Package,
     tag: 'B2B classic',
     personaId: 'vendor_rep',
+    side: 'buyer',
     primaryGoal: 'Cap renewal uplift',
     sessionId: 'VND-220-SF',
     unit: '/yr',
@@ -97,6 +101,7 @@ export const SCENARIOS = {
     icon: Home,
     tag: 'Everyday use case',
     personaId: 'property_manager',
+    side: 'buyer',
     primaryGoal: 'Keep monthly rent flat',
     sessionId: 'RES-118-MAN',
     unit: '/mo',
@@ -119,6 +124,7 @@ export const SCENARIOS = {
     icon: Shield,
     tag: 'Structured dispute',
     personaId: 'claims_adjuster',
+    side: 'seller',
     primaryGoal: 'Recover fair settlement',
     sessionId: 'CLM-903-UK',
     unit: '',
@@ -133,6 +139,75 @@ export const SCENARIOS = {
     openingOffer:
       'Based on our assessment we can authorize £6,500. That reflects depreciation on the items listed.',
     contextLine: 'Claim file loaded. Adjuster agent joined the thread.',
+  },
+  usedcar: {
+    id: 'usedcar',
+    title: 'Used Car Purchase',
+    subtitle: 'Private buyer vs dealership desk · England & Wales',
+    icon: Car,
+    tag: 'Everyday consumer',
+    personaId: 'car_dealer',
+    side: 'buyer',
+    primaryGoal: 'Cut the OTR price without losing warranty',
+    sessionId: 'CAR-774-E&W',
+    unit: '',
+    currency: '£',
+    targetPrice: 11800,
+    walkawayPrice: 13200,
+    currentAsk: 14500,
+    termYears: 1,
+    maxTermYears: 1,
+    concessionPct: 0.12,
+    rigidity: 0.7,
+    openingOffer:
+      'On-the-road price is £14,500 including warranty. Finance and part-exchange available if you decide today.',
+    contextLine: 'Forecourt negotiation opened. Dealer agent connected.',
+  },
+  renovation: {
+    id: 'renovation',
+    title: 'Home Renovation Quote',
+    subtitle: 'Kitchen/bath remodel · you vs main contractor',
+    icon: Hammer,
+    tag: 'Home project',
+    personaId: 'builder_foreman',
+    side: 'buyer',
+    primaryGoal: 'Cap the quote without losing start date',
+    sessionId: 'REN-331-E&W',
+    unit: '',
+    currency: '£',
+    targetPrice: 22000,
+    walkawayPrice: 25500,
+    currentAsk: 28500,
+    termYears: 1,
+    maxTermYears: 1,
+    concessionPct: 0.15,
+    rigidity: 0.65,
+    openingOffer:
+      'Fixed quote is £28,500 for labour and materials as scoped. We can start in three weeks if the deposit clears.',
+    contextLine: 'Contractor quote thread opened. Builder agent on the table.',
+  },
+  flatbuy: {
+    id: 'flatbuy',
+    title: 'Buy a Flat (E&W)',
+    subtitle: 'Private treaty · buyer vs estate agent',
+    icon: KeyRound,
+    tag: 'England & Wales',
+    personaId: 'estate_agent',
+    side: 'buyer',
+    primaryGoal: 'Agree a purchase price under asking',
+    sessionId: 'FLT-612-E&W',
+    unit: '',
+    currency: '£',
+    targetPrice: 365000,
+    walkawayPrice: 378000,
+    currentAsk: 395000,
+    termYears: 1,
+    maxTermYears: 1,
+    concessionPct: 0.08,
+    rigidity: 0.75,
+    openingOffer:
+      'Guide price £395,000 — offers over preferred. Seller wants a clean chain and exchange within eight weeks.',
+    contextLine: 'England & Wales private-treaty thread opened. Estate agent connected.',
   },
 }
 
@@ -218,6 +293,54 @@ export const PERSONAS = {
       tip: 'Your target (£12,500) is what you believe the loss is worth; walkaway (£9,000) is the minimum before escalation (ombudsman, solicitor). Their £6,500 opening is an anchor — counters should reference documented replacement cost.',
     },
   },
+  car_dealer: {
+    id: 'car_dealer',
+    name: 'Car Dealer',
+    agentName: 'Forecourt Agent',
+    org: 'Northside Motors (Agent)',
+    rigidity: 0.7,
+    guide: {
+      who: 'Forecourt Agent sells used stock for the dealership. They protect margin on the sticker price and prefer to “give” on extras rather than deep cash discounts.',
+      behaviors: [
+        'Anchors to on-the-road (OTR) price and “today only” urgency.',
+        'Trades warranty months, servicing, or mats before cutting headline price hard.',
+        'May move if you are a cash buyer or skip finance commission.',
+      ],
+      tip: 'Target is your walk-in number; walkaway is the max OTR you’ll pay. Ask what is included before conceding.',
+    },
+  },
+  builder_foreman: {
+    id: 'builder_foreman',
+    name: 'Builder / Foreman',
+    agentName: 'Site Agent',
+    org: 'Hale & Sons Build (Agent)',
+    rigidity: 0.65,
+    guide: {
+      who: 'Site Agent prices domestic renovations. Labour, materials, and programme risk sit with them — they resist naked cuts but will re-scope.',
+      behaviors: [
+        'Defends the fixed quote with materials and programme language.',
+        'Open to phasing rooms, client-supply appliances, or off-peak start dates.',
+        'Pushes deposit timing and variation rules if price moves.',
+      ],
+      tip: 'Target is a fair fixed price; walkaway is max before you re-tender. Trade scope or timing before blank discounts.',
+    },
+  },
+  estate_agent: {
+    id: 'estate_agent',
+    name: 'Estate Agent',
+    agentName: 'Listing Agent',
+    org: 'Park & Vale Residential (Agent)',
+    rigidity: 0.75,
+    guide: {
+      who: 'Listing Agent represents the seller on an England & Wales private-treaty sale (not Scotland). They chase best price and a clean chain toward exchange.',
+      behaviors: [
+        'Frames “offers over” / guide price and cites other interest.',
+        'Values proof of funds, mortgage AIP, and flexible completion.',
+        'May trade fixtures, carpets, or completion date before large price moves.',
+      ],
+      tip: 'Target is your offer; walkaway is the max before you walk. England & Wales only — no Scottish closing-date sealed bids here.',
+    },
+  },
 }
 
 export function scenarioToDeal(scenario, overrides = {}) {
@@ -227,6 +350,8 @@ export function scenarioToDeal(scenario, overrides = {}) {
     sessionId: scenario.sessionId,
     unit: scenario.unit,
     currency: scenario.currency,
+    // buyer = you pay (want lower). seller = you receive (want higher).
+    side: scenario.side || 'buyer',
     targetPrice: overrides.targetPrice ?? scenario.targetPrice,
     walkawayPrice: overrides.walkawayPrice ?? scenario.walkawayPrice,
     currentAsk: overrides.currentAsk ?? scenario.currentAsk,

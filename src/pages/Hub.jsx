@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import clsx from 'clsx'
 import {
   ArrowRight,
@@ -23,12 +23,8 @@ import {
   sendInstruction,
   setRoute,
 } from '../lib/dealStore.js'
+import { formatMoney as formatPrice } from '../lib/formatMoney.js'
 import { useDeal } from '../lib/useDeal.js'
-
-function formatPrice(deal, value) {
-  if (deal.unit) return `${deal.currency}${value}${deal.unit}`
-  return `${deal.currency}${Number(value).toLocaleString()}`
-}
 
 function MarketCheck({ market }) {
   if (!market) return null
@@ -39,7 +35,8 @@ function MarketCheck({ market }) {
       {market.status === 'loading' && <p className="mt-2 text-neutral">Searching live comps…</p>}
       {market.error && (
         <p className="mt-2 text-amber-800">
-          {market.error}. The negotiation continues. The counterparty price is still the on-page rules.
+          {market.error}. Negotiation continues
+          {market.error?.includes('rule engine') ? ' with the on-page rules.' : '.'}
         </p>
       )}
       {market.query && !market.error && <p className="mt-2 text-neutral">{market.query}</p>}
@@ -86,6 +83,34 @@ function MessageBubble({ message }) {
 
   const isPrincipal = message.from === 'principal'
 
+  if (message.processing) {
+    return (
+      <div className="flex gap-3">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-700">
+          <Building2 className="h-4 w-4" strokeWidth={1.5} />
+        </div>
+        <div className="max-w-[85%]">
+          <div className="mb-1.5 flex items-center gap-2 text-sm text-neutral">
+            <span className="font-semibold text-slate-800">{message.author}</span>
+            <span className="text-xs">{message.time}</span>
+          </div>
+          <div className="rounded-xl border-2 border-amber-300 bg-amber-50 px-5 py-4 shadow-sm">
+            <div className="flex items-center gap-3">
+              <span className="relative flex h-3 w-3">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-500 opacity-60" />
+                <span className="relative inline-flex h-3 w-3 rounded-full bg-amber-600" />
+              </span>
+              <div>
+                <p className="text-sm font-semibold text-amber-950">Processing — Nemotron is drafting a reply</p>
+                <p className="mt-0.5 text-xs text-amber-800/80">Usually a few seconds. Stay on this screen.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className={clsx('flex gap-3', isPrincipal ? 'flex-row-reverse' : '')}>
       <div
@@ -105,12 +130,6 @@ function MessageBubble({ message }) {
           {!isPrincipal && <span className="font-medium text-slate-700">{message.author}</span>}
           {isPrincipal && <span className="font-medium text-slate-700">{message.author || 'You'}</span>}
           <span>{message.time}</span>
-          {message.processing && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-tertiary">
-              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-tertiary" />
-              Processing
-            </span>
-          )}
         </div>
         <div
           className={clsx(
@@ -121,6 +140,33 @@ function MessageBubble({ message }) {
           )}
         >
           {message.text}
+          {message.fallback && (
+            <p className="mt-2 font-mono text-[10px] uppercase tracking-wide text-amber-700">
+              Rule-engine fallback
+            </p>
+          )}
+          {message.sources?.length > 0 && (
+            <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-left text-xs">
+              <div className="font-mono text-[10px] font-medium uppercase tracking-wide text-neutral">
+                Market check · Tavily
+              </div>
+              <ul className="mt-1.5 space-y-1.5">
+                {message.sources.map((source) => (
+                  <li key={source.url}>
+                    <a
+                      href={source.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1 font-medium text-primary hover:underline"
+                    >
+                      {source.title}
+                      <ExternalLink className="h-3 w-3" strokeWidth={1.5} />
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           {message.attachment && (
             <div className="mt-3 flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs">
               <BarChart3 className="h-4 w-4 text-primary" strokeWidth={1.5} />
@@ -314,6 +360,16 @@ export default function Hub() {
   const persona = personaId ? getPersona(personaId) : null
   const counterpartyOrg = customScenario?.counterparty || persona?.org || 'Counterparty Agent'
   const [input, setInput] = useState('')
+  const threadRef = useRef(null)
+
+  const lastMessage = messages[messages.length - 1]
+  const scrollKey = `${messages.length}:${lastMessage?.id ?? ''}:${lastMessage?.processing ? '1' : '0'}:${lastMessage?.text?.slice(0, 40) ?? ''}`
+
+  useEffect(() => {
+    const scroller = threadRef.current
+    if (!scroller) return
+    scroller.scrollTo({ top: scroller.scrollHeight, behavior: 'smooth' })
+  }, [scrollKey])
 
   if (!deal) {
     return (
@@ -340,16 +396,32 @@ export default function Hub() {
         <div className="border-b border-slate-200/80 bg-white px-6 py-5">
           <h1 className="text-xl font-bold text-slate-900">{deal.title}</h1>
           <p className="mt-0.5 text-sm text-neutral">Counter-party: {counterpartyOrg}</p>
-          <div className="mt-4 flex gap-4">
-            <div className="rounded-xl border border-slate-200 bg-page px-5 py-3">
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-xl border border-slate-200 bg-page px-4 py-3">
               <div className="font-mono text-[10px] font-medium uppercase tracking-wide text-neutral">
-                Target {deal.unit ? 'Rent' : 'Price'}
+                Target {deal.unit ? 'Rate' : 'Price'}
               </div>
               <div className="mt-1 text-lg font-bold text-slate-900">
                 {formatPrice(deal, deal.targetPrice)}
               </div>
             </div>
-            <div className="rounded-xl border border-slate-200 bg-page px-5 py-3">
+            <div className="rounded-xl border border-slate-200 bg-page px-4 py-3">
+              <div className="font-mono text-[10px] font-medium uppercase tracking-wide text-neutral">
+                Walkaway {deal.unit ? 'Rate' : 'Price'}
+              </div>
+              <div className="mt-1 text-lg font-bold text-slate-900">
+                {formatPrice(deal, deal.walkawayPrice)}
+              </div>
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-page px-4 py-3">
+              <div className="font-mono text-[10px] font-medium uppercase tracking-wide text-neutral">
+                Concession Threshold
+              </div>
+              <div className="mt-1 text-lg font-bold text-slate-900">
+                {Math.round((deal.concessionPct ?? 0) * 100)}%
+              </div>
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-page px-4 py-3">
               <div className="font-mono text-[10px] font-medium uppercase tracking-wide text-neutral">
                 Current Ask
               </div>
@@ -361,11 +433,12 @@ export default function Hub() {
               >
                 {formatPrice(deal, deal.currentAsk)}
               </div>
+              <p className="mt-1 text-[10px] text-neutral">Counterparty’s live number</p>
             </div>
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-6 py-4">
+        <div ref={threadRef} className="flex-1 overflow-y-auto px-6 py-4">
           <div className="mx-auto max-w-3xl space-y-4">
             {advisor.offTrack && (
               <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-900">

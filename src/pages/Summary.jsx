@@ -1,4 +1,5 @@
-import { ArrowRight, Download, Home, Copy, CheckCircle2 } from 'lucide-react'
+import { ArrowRight, Download, Home, Copy, CheckCircle2, FileText } from 'lucide-react'
+import { buildHandoffDoc, downloadHandoffDoc, openHandoffDoc } from '../lib/handoffDocs.js'
 import { exportAudit, exportTranscript, goHome } from '../lib/dealStore.js'
 import { useDeal } from '../lib/useDeal.js'
 
@@ -14,6 +15,17 @@ export default function Summary() {
         </button>
       </div>
     )
+  }
+
+  const handoffCtx = () => ({
+    closure,
+    deal,
+    transcript: exportTranscript(),
+    auditJson: exportAudit(),
+  })
+
+  const openStep = (stepId) => {
+    openHandoffDoc(buildHandoffDoc(stepId, handoffCtx()))
   }
 
   const copyTranscript = () => {
@@ -68,13 +80,47 @@ export default function Summary() {
       </div>
 
       <div className="mt-6 rounded-xl border border-slate-200 bg-white p-6 shadow-card">
-        <h2 className="text-sm font-semibold text-slate-900">Next steps</h2>
-        <ul className="mt-4 space-y-4">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h2 className="text-sm font-semibold text-slate-900">Next steps</h2>
+            <p className="mt-1 text-xs text-neutral">
+              Click a step to open a handoff page. Use <strong>Print / Save as PDF</strong> in that window, or download
+              the HTML.
+            </p>
+          </div>
+        </div>
+        <ul className="mt-4 space-y-3">
           {closure.nextSteps.map((step) => (
-            <li key={step.action} className="border-l-2 border-primary pl-4">
-              <div className="text-xs font-semibold text-primary">{step.who}</div>
-              <div className="text-sm text-slate-800">{step.action}</div>
-              <div className="text-xs text-neutral">Deadline: {step.deadline}</div>
+            <li
+              key={step.id || step.action}
+              className="rounded-xl border border-slate-200 bg-page px-4 py-3 transition hover:border-primary/30"
+            >
+              <div className="flex items-start gap-3">
+                <FileText className="mt-0.5 h-4 w-4 shrink-0 text-primary" strokeWidth={1.5} />
+                <div className="min-w-0 flex-1">
+                  <div className="text-xs font-semibold text-primary">{step.who}</div>
+                  <div className="text-sm text-slate-800">{step.action}</div>
+                  <div className="text-xs text-neutral">Deadline: {step.deadline}</div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => openStep(step.id)}
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-[11px] font-semibold text-white hover:bg-indigo-600"
+                    >
+                      Open handoff
+                      <ArrowRight className="h-3 w-3" strokeWidth={2} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => downloadHandoffDoc(buildHandoffDoc(step.id, handoffCtx()))}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-medium text-slate-700 hover:bg-slate-50"
+                    >
+                      <Download className="h-3 w-3" strokeWidth={1.5} />
+                      Download .html
+                    </button>
+                  </div>
+                </div>
+              </div>
             </li>
           ))}
         </ul>

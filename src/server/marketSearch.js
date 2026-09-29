@@ -7,6 +7,9 @@ const QUERIES = {
   vendor: 'B2B SaaS annual renewal pricing benchmarks 2026',
   residential: 'apartment rent renewal market rate 2026',
   insurance: 'UK home contents insurance claim settlement amounts 2026',
+  usedcar: 'UK used car dealership negotiation average discounts 2026',
+  renovation: 'UK home renovation kitchen bathroom contractor quote costs 2026',
+  flatbuy: 'England Wales flat purchase price negotiation offers under asking 2026',
 }
 
 export function marketQuery(input = {}) {

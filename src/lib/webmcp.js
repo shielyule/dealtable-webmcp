@@ -12,6 +12,7 @@ import {
   snapshot,
   updateSetup,
 } from './dealStore.js'
+import { formatMoney } from './formatMoney.js'
 
 function modelContext() {
   return document.modelContext ?? navigator.modelContext ?? null
@@ -113,7 +114,7 @@ const TOOLS = [
       const s = getState()
       openHitl({
         kind: 'accept',
-        reason: `Accept ${input.label || 'current offer'} at ${s.deal.currency}${s.deal.currentAsk}${s.deal.unit ?? ''}?`,
+        reason: `Accept ${input.label || 'current offer'} at ${formatMoney(s.deal, s.deal.currentAsk)}?`,
         label: input.label,
         price: s.deal.currentAsk,
         termYears: s.deal.termYears,

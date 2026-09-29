@@ -5,6 +5,7 @@
 
 import { computeAdvisor } from './advisorEngine.js'
 import { buildClosure, counterpartyReply, replyToInstruction, seedOpeningMessages } from './counterpartyEngine.js'
+import { formatMoney, withGroupedCurrencyAmounts } from './formatMoney.js'
 import { extractOfferFields } from './offerParser.js'
 import { getPersona, getScenario, scenarioToDeal, SCENARIOS } from './scenarios.js'
 
@@ -138,6 +139,7 @@ export function startCustomScenario({ title, counterparty, targetPrice, walkaway
     sessionId: `CUS-${Math.random().toString(36).slice(2, 7).toUpperCase()}`,
     unit: template.unit,
     currency: template.currency,
+    side: template.side || 'buyer',
     targetPrice: Number(targetPrice) || template.targetPrice,
     walkawayPrice: Number(walkawayPrice) || template.walkawayPrice,
     currentAsk: Number(targetPrice) ? Math.round(Number(targetPrice) * 1.12) : template.currentAsk,
@@ -400,35 +402,165 @@ function loadMarket() {
     })
 }
 
-function appendCounterparty(reply) {
+function appendCounterparty(reply, extras = {}) {
+  const proposedPrice = Number(extras.proposedPrice)
+  const hasPrice = Number.isFinite(proposedPrice) && proposedPrice > 0
+  const currency = state.deal?.currency || '£'
+  const text = withGroupedCurrencyAmounts(reply.text, currency)
   setState((s) =>
     withAdvisor({
       ...s,
+      deal: hasPrice && s.deal ? { ...s.deal, currentAsk: proposedPrice } : s.deal,
       messages: [
-        ...s.messages,
+        ...s.messages.filter((m) => !m.processing),
         {
           id: crypto.randomUUID(),
           from: 'counterparty',
           author: reply.author,
-          text: reply.text,
+          text,
           time: nowStamp(),
+          sources: extras.sources || undefined,
+          model: extras.model || undefined,
+          fallback: Boolean(extras.fallback),
         },
       ],
+      market:
+        extras.sources || extras.query || extras.marketError
+          ? {
+              status: extras.marketError && !(extras.sources || []).length ? 'error' : 'ready',
+              query: extras.query || s.market?.query || '',
+              sources: extras.sources || s.market?.sources || [],
+              error: extras.marketError || null,
+            }
+          : s.market,
       audit: [
         ...s.audit,
-        audit('STATE_MUTATION', 'Counterparty response', reply.text.slice(0, 120), {
+        audit('STATE_MUTATION', 'Counterparty response', text.slice(0, 120), {
           trigger: reply.author,
+          json: {
+            model: extras.model || null,
+            proposedPrice: hasPrice ? proposedPrice : null,
+            fallback: Boolean(extras.fallback),
+            sources: (extras.sources || []).map((source) => ({ title: source.title, url: source.url })),
+          },
         }),
       ],
     }),
   )
 }
 
+function buildCounterpartyPayload(kind, fields = {}) {
+  const persona = activePersona()
+  const deal = state.deal
+  return {
+    kind,
+    price: fields.price,
+    termYears: fields.termYears,
+    note: fields.note,
+    instruction: fields.instruction,
+    deal: {
+      scenario: deal.scenario,
+      title: deal.title,
+      currency: deal.currency,
+      unit: deal.unit,
+      side: deal.side || 'buyer',
+      currentAsk: deal.currentAsk,
+      priorAsk: fields.priorAsk ?? deal.currentAsk,
+      termYears: deal.termYears,
+      maxTermYears: deal.maxTermYears,
+    },
+    persona: {
+      agentName: persona.agentName,
+      org: persona.org,
+      name: persona.name,
+      rigidity: persona.rigidity,
+      behaviors: persona.guide?.behaviors || [],
+      who: persona.guide?.who || '',
+    },
+    messages: state.messages
+      .filter((m) => !m.processing && m.from !== 'system')
+      .slice(-12)
+      .map(({ from, author, text }) => ({ from, author, text })),
+  }
+}
+
+function fallbackReply(kind, fields = {}) {
+  const persona = activePersona()
+  const deal = state.deal
+  if (kind === 'instruction') return replyToInstruction(deal, persona, fields.instruction || '')
+  return counterpartyReply(deal, persona, {
+    price: fields.price ?? deal.currentAsk,
+    termYears: fields.termYears,
+    note: fields.note,
+    kind: kind === 'hold' ? 'hold' : 'offer',
+  })
+}
+
+function requestCounterpartyTurn(kind, fields = {}) {
+  const persona = activePersona()
+  const author = persona.agentName || 'Counterparty Agent'
+  setState((s) => ({
+    ...s,
+    messages: [
+      ...s.messages.filter((m) => !m.processing),
+      {
+        id: crypto.randomUUID(),
+        from: 'counterparty',
+        author,
+        text: 'Nemotron is drafting a reply…',
+        time: nowStamp(),
+        processing: true,
+      },
+    ],
+  }))
+
+  fetch('/api/counterparty', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(buildCounterpartyPayload(kind, fields)),
+  })
+    .then(async (res) => {
+      const data = await res.json().catch(() => ({}))
+      return { ok: res.ok, data }
+    })
+    .then(({ ok, data }) => {
+      if (ok && data?.text && !data.fallback) {
+        appendCounterparty(
+          { author: data.author || author, text: data.text },
+          {
+            proposedPrice: data.proposedPrice,
+            sources: data.sources,
+            query: data.query,
+            marketError: data.marketError,
+            model: data.model,
+            fallback: false,
+          },
+        )
+        return
+      }
+      const reply = fallbackReply(kind, fields)
+      appendCounterparty(reply, {
+        proposedPrice: reply.proposedPrice,
+        sources: data?.sources,
+        query: data?.query,
+        marketError: data?.error || data?.marketError || 'Nemotron unavailable — used rule engine',
+        model: data?.model,
+        fallback: true,
+      })
+    })
+    .catch(() => {
+      const reply = fallbackReply(kind, fields)
+      appendCounterparty(reply, {
+        proposedPrice: reply.proposedPrice,
+        marketError: 'Nemotron unavailable — used rule engine',
+        fallback: true,
+      })
+    })
+}
+
 export function sendInstruction(text) {
   const trimmed = text.trim()
   if (!trimmed || state.status === 'accepted') return
-  const persona = activePersona()
-  const deal = state.deal
 
   setState((s) => ({
     ...s,
@@ -439,7 +571,7 @@ export function sendInstruction(text) {
     audit: [...s.audit, audit('TOOL_CALL', 'instruct_principal_agent', trimmed, { agent: 'Principal' })],
   }))
 
-  appendCounterparty(replyToInstruction(deal, persona, trimmed))
+  requestCounterpartyTurn('instruction', { instruction: trimmed })
 }
 
 export function proposeWinWinTerm(term) {
@@ -447,7 +579,16 @@ export function proposeWinWinTerm(term) {
 }
 
 function crossesWalkaway(price) {
-  return Number(price) < Number(state.deal.walkawayPrice)
+  const deal = state.deal
+  const n = Number(price)
+  // Seller (claim/salary): walkaway is your floor — going below needs approval.
+  // Buyer (lease etc.): walkaway is your ceiling — going below needs approval (same numeric test).
+  return n < Number(deal.walkawayPrice)
+}
+
+function formatOfferLine(deal, price, termYears) {
+  const amount = formatMoney(deal, price)
+  return termYears ? `${amount} / ${termYears}yr` : amount
 }
 
 function applyOffer(price, termYears, note) {
@@ -455,13 +596,16 @@ function applyOffer(price, termYears, note) {
   if (Number.isNaN(nextPrice)) {
     return { ok: false, error: 'Invalid offer price.' }
   }
-  const persona = activePersona()
   const previous = { currentAsk: state.deal.currentAsk, termYears: state.deal.termYears }
   const deal = {
     ...state.deal,
-    currentAsk: nextPrice,
+    // Keep Current Ask as the counterparty's number until they reply.
     termYears: termYears ?? state.deal.termYears,
   }
+  const offerLine = formatOfferLine(deal, nextPrice, termYears ?? deal.termYears)
+  const text = note?.trim()
+    ? `You countered at ${offerLine}. ${note.trim()}`
+    : `You countered at ${offerLine}.`
 
   setState((s) =>
     withAdvisor({
@@ -473,34 +617,53 @@ function applyOffer(price, termYears, note) {
         {
           id: crypto.randomUUID(),
           from: 'principal',
-          author: 'Principal Agent',
-          text: note || `Counter at ${deal.currency}${nextPrice}${deal.unit}${termYears ? ` / ${termYears}yr` : ''}.`,
+          author: 'You',
+          text,
           time: nowStamp(),
         },
       ],
       audit: [
         ...s.audit,
-        audit('STATE_MUTATION', 'Offer applied', 'Principal agent updated the live ask.', {
-          trigger: 'Principal',
+        audit('STATE_MUTATION', 'Offer applied', 'You updated the live counter.', {
+          trigger: 'You',
           previous,
-          next: { currentAsk: nextPrice, termYears: termYears ?? deal.termYears },
+          next: { offered: nextPrice, termYears: termYears ?? deal.termYears },
         }),
       ],
     }),
   )
 
-  const reply = counterpartyReply(deal, persona, { price: nextPrice, termYears, note })
-  appendCounterparty(reply)
+  requestCounterpartyTurn('offer', {
+    price: nextPrice,
+    termYears,
+    note,
+    priorAsk: previous.currentAsk,
+  })
 }
 
 export function proposeOffer({ price, termYears, note }) {
   const nextPrice = Number(price)
   if (Number.isNaN(nextPrice)) return { ok: false, error: 'Price must be a number.' }
   if (crossesWalkaway(nextPrice)) {
+    const deal = state.deal
+    const offerLine = formatOfferLine(deal, nextPrice, termYears ?? deal.termYears)
+    setState((s) => ({
+      ...s,
+      messages: [
+        ...s.messages,
+        {
+          id: crypto.randomUUID(),
+          from: 'principal',
+          author: 'You',
+          text: `You proposed ${offerLine} — below walkaway ${formatOfferLine(deal, deal.walkawayPrice)}. Waiting for your approval.`,
+          time: nowStamp(),
+        },
+      ],
+    }))
     return {
       ok: false,
       needsHitl: true,
-      reason: `Offer ${state.deal.currency}${nextPrice} is below walkaway ${state.deal.currency}${state.deal.walkawayPrice}.`,
+      reason: `Offer ${formatMoney(deal, nextPrice)} is below walkaway ${formatMoney(deal, deal.walkawayPrice)}.`,
       pending: { kind: 'propose', price: nextPrice, termYears, note },
     }
   }
@@ -535,8 +698,8 @@ export function exportTranscript() {
 }
 
 export function holdFirm() {
-  const persona = activePersona()
   const deal = state.deal
+  const holdLine = formatOfferLine(deal, deal.targetPrice, deal.termYears)
   setState((s) => ({
     ...s,
     messages: [
@@ -544,14 +707,14 @@ export function holdFirm() {
       {
         id: crypto.randomUUID(),
         from: 'principal',
-        author: 'Principal Agent',
-        text: `Holding firm at ${deal.currency}${deal.targetPrice}${deal.unit}.`,
+        author: 'You',
+        text: `You are holding firm at your target ${holdLine}.`,
         time: nowStamp(),
       },
     ],
-    audit: [...s.audit, audit('TOOL_CALL', 'hold_firm', 'Principal refused latest concession.', { agent: 'Principal' })],
+    audit: [...s.audit, audit('TOOL_CALL', 'hold_firm', 'You refused the latest concession.', { agent: 'You' })],
   }))
-  appendCounterparty(counterpartyReply(deal, persona, { price: deal.targetPrice, kind: 'hold' }))
+  requestCounterpartyTurn('hold', { price: deal.targetPrice, priorAsk: deal.currentAsk })
   return { ok: true, state: snapshot() }
 }
 

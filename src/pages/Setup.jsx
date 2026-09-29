@@ -14,6 +14,7 @@ import {
   updateSetup,
 } from '../lib/dealStore.js'
 import { useDeal } from '../lib/useDeal.js'
+import { formatNumber } from '../lib/formatMoney.js'
 
 const CONCESSION_OPTIONS = [
   { value: 0, label: 'Rigid', sub: '0%' },
@@ -24,23 +25,23 @@ const CONCESSION_OPTIONS = [
 const TARGET_HELP = (
   <>
     <p>Your <strong>ideal outcome</strong> — the number you&apos;re negotiating toward.</p>
-    <p className="mt-2">Examples:</p>
-    <ul className="mt-1 list-inside list-disc space-y-1 text-neutral">
-      <li>Lease: $45/sqft rent you want to pay</li>
-      <li>Salary: £95,000 base you&apos;re aiming for</li>
-      <li>Insurance claim: £12,500 settlement you believe is fair</li>
-    </ul>
+    <p className="mt-2">
+      The pre-filled figure is a <strong>low-end market anchor</strong> for this scenario (demo starting point), not a
+      live web quote. Edit it to match your real mandate.
+    </p>
   </>
 )
 
 const WALKAWAY_HELP = (
   <>
     <p>
-      Your <strong>hard limit</strong>. Offers below this trigger a human approval modal — the app will not
-      auto-concede past this without you clicking Approve.
+      Your <strong>hard limit</strong>. Offers past this trigger human approval — the app will not auto-concede without
+      you clicking Approve.
     </p>
-    <p className="mt-2">Must be worse for you than target (lower if you&apos;re paying; higher if you&apos;re claiming).</p>
-    <p className="mt-2 text-amber-700">If target and walkaway are reversed, counters may behave unexpectedly.</p>
+    <p className="mt-2">
+      Pre-filled as a cautious low-end market floor for the scenario. Must be worse for you than target (lower if
+      you&apos;re paying; higher if you&apos;re claiming).
+    </p>
   </>
 )
 
@@ -54,6 +55,53 @@ const CONCESSION_HELP = (
     </ul>
   </>
 )
+
+const NUMBERS_HELP = (
+  <>
+    <p className="font-medium text-slate-800">Where the numbers come from</p>
+    <ol className="mt-2 list-decimal space-y-2 pl-4">
+      <li>
+        <strong>Their opening offer</strong> — paste their letter first. Extract suggests numbers from that text only.
+      </li>
+      <li>
+        <strong>Negotiation Parameters</strong> — curated <em>low-end market</em> starting points for the scenario
+        (or values you applied from extract). Not a live Tavily call. Change them anytime.
+      </li>
+      <li>
+        <strong>Live Tavily comps</strong> — after you start negotiating, the hub searches the web so the counterparty
+        can cite current sources.
+      </li>
+    </ol>
+  </>
+)
+
+/** Built for later multi-advisor support; only ChatGPT is enabled for this hackathon. */
+const ADVISOR_OPTIONS = [
+  {
+    id: 'chatgpt',
+    label: 'ChatGPT',
+    detail: 'WebMCP on this URL',
+    enabled: true,
+  },
+  {
+    id: 'claude',
+    label: 'Claude',
+    detail: 'Coming in v3',
+    enabled: false,
+  },
+  {
+    id: 'gemini',
+    label: 'Gemini',
+    detail: 'Coming in v3',
+    enabled: false,
+  },
+  {
+    id: 'other',
+    label: 'Other',
+    detail: 'Coming in v3',
+    enabled: false,
+  },
+]
 
 export default function Setup() {
   const {
@@ -80,6 +128,7 @@ export default function Setup() {
   const [walkawayPrice, setWalkawayPrice] = useState(deal?.walkawayPrice ?? 0)
   const [concessionPct, setConcessionPct] = useState(deal?.concessionPct ?? 0.15)
   const [advisor, setAdvisor] = useState(advisorEnabled)
+  const [advisorProvider, setAdvisorProvider] = useState('chatgpt')
   const [openingText, setOpeningText] = useState(openingOfferText ?? '')
   const [extracting, setExtracting] = useState(false)
 
@@ -172,7 +221,120 @@ export default function Setup() {
       <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
         <div className="space-y-6">
           <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-card">
-            <h2 className="text-base font-semibold text-slate-900">Negotiation Parameters</h2>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-base font-semibold text-slate-900">Their opening offer</h2>
+                <p className="mt-1 text-xs text-neutral">
+                  Paste or upload text — then extract key numbers into your mandate below.
+                </p>
+              </div>
+              <HelpTip label="Document extraction" variant="info">
+                <p>
+                  <strong>Extract with Advisor</strong> only reads the text you paste or upload. It suggests target /
+                  walkaway / their ask from that letter. It does <em>not</em> call Tavily or pull live market rates.
+                </p>
+                <p className="mt-2">
+                  Live comps appear later on the negotiation hub after you start. In ChatGPT&apos;s browser, the same
+                  extract logic is also available as <code className="font-mono">parse_opening_offer</code>.
+                </p>
+              </HelpTip>
+            </div>
+            <textarea
+              value={openingText}
+              onChange={(e) => {
+                setOpeningText(e.target.value)
+                sync({ openingOfferText: e.target.value })
+              }}
+              rows={4}
+              placeholder="Paste their email, offer letter, or adjuster letter here..."
+              className="mt-4 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+            />
+            <div className="mt-3 flex flex-wrap gap-2">
+              <input ref={fileRef} type="file" accept=".txt,.md,.csv,text/plain" className="hidden" onChange={handleFile} />
+              <button
+                type="button"
+                onClick={() => fileRef.current?.click()}
+                className="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50"
+              >
+                <Upload className="h-3.5 w-3.5" strokeWidth={1.5} />
+                Upload text file
+                {openingFileName && <span className="text-neutral">({openingFileName})</span>}
+              </button>
+              <button
+                type="button"
+                disabled={!openingText.trim() || extracting}
+                onClick={() => runExtract()}
+                className="flex items-center gap-2 rounded-xl bg-indigo-50 px-3 py-2 text-xs font-semibold text-primary hover:bg-indigo-100 disabled:opacity-50"
+              >
+                <Sparkles className="h-3.5 w-3.5" strokeWidth={1.5} />
+                {extracting ? 'Extracting…' : 'Extract with Advisor'}
+              </button>
+            </div>
+
+            {extractionPreview?.ok && (
+              <div className="mt-4 rounded-xl border border-indigo-200 bg-indigo-50/50 p-4">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-semibold text-indigo-900">
+                    Advisor extraction ({extractionPreview.confidence} confidence)
+                  </span>
+                  <button type="button" onClick={() => clearExtraction()} className="text-[10px] text-neutral underline">
+                    Dismiss
+                  </button>
+                </div>
+                <p className="mt-2 text-xs text-slate-700">{extractionPreview.summary}</p>
+                <ul className="mt-2 space-y-1">
+                  {extractionPreview.notes?.map((n) => (
+                    <li key={n} className="text-[11px] text-neutral">
+                      • {n}
+                    </li>
+                  ))}
+                </ul>
+                <div className="mt-3 grid grid-cols-3 gap-2 font-mono text-[10px]">
+                  <div className="rounded-lg bg-white p-2">
+                    <div className="text-neutral">Their ask</div>
+                    <div className="font-semibold text-slate-900">
+                      {deal.currency}
+                      {formatNumber(extractionPreview.extracted.currentAsk)}
+                    </div>
+                  </div>
+                  <div className="rounded-lg bg-white p-2">
+                    <div className="text-neutral">Sugg. target</div>
+                    <div className="font-semibold text-slate-900">
+                      {deal.currency}
+                      {formatNumber(extractionPreview.extracted.targetPrice)}
+                    </div>
+                  </div>
+                  <div className="rounded-lg bg-white p-2">
+                    <div className="text-neutral">Sugg. walkaway</div>
+                    <div className="font-semibold text-slate-900">
+                      {deal.currency}
+                      {formatNumber(extractionPreview.extracted.walkawayPrice)}
+                    </div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleApplyExtraction}
+                  className="mt-3 w-full rounded-xl bg-primary py-2 text-xs font-semibold text-white hover:bg-indigo-600"
+                >
+                  Apply suggested values
+                </button>
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-card">
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <h2 className="text-base font-semibold text-slate-900">Negotiation Parameters</h2>
+                <p className="mt-1 text-xs text-neutral">
+                  Pre-filled as low-end market anchors for this scenario. Edit freely.
+                </p>
+              </div>
+              <HelpTip label="Where do these numbers come from?" variant="info">
+                {NUMBERS_HELP}
+              </HelpTip>
+            </div>
             <div className="mt-5 grid gap-5 sm:grid-cols-2">
               <div>
                 <label className="mb-1.5 flex items-center gap-1.5 font-mono text-xs font-medium uppercase tracking-wide text-neutral">
@@ -251,106 +413,6 @@ export default function Setup() {
               </div>
             </div>
           </div>
-
-          <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-card">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <h2 className="text-base font-semibold text-slate-900">Their opening offer</h2>
-                <p className="mt-1 text-xs text-neutral">
-                  Paste or upload text — then extract key numbers into your mandate.
-                </p>
-              </div>
-              <HelpTip label="Document extraction" variant="info">
-                <p>
-                  Click <strong>Extract with Advisor</strong> to parse amounts and suggest target / walkaway /
-                  their ask. Works offline (rule-based). In ChatGPT&apos;s browser, the same logic is available as
-                  the <code className="font-mono">parse_opening_offer</code> WebMCP tool for richer interpretation.
-                </p>
-              </HelpTip>
-            </div>
-            <textarea
-              value={openingText}
-              onChange={(e) => {
-                setOpeningText(e.target.value)
-                sync({ openingOfferText: e.target.value })
-              }}
-              rows={4}
-              placeholder="Paste their email, offer letter, or adjuster letter here..."
-              className="mt-4 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-            />
-            <div className="mt-3 flex flex-wrap gap-2">
-              <input ref={fileRef} type="file" accept=".txt,.md,.csv,text/plain" className="hidden" onChange={handleFile} />
-              <button
-                type="button"
-                onClick={() => fileRef.current?.click()}
-                className="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50"
-              >
-                <Upload className="h-3.5 w-3.5" strokeWidth={1.5} />
-                Upload text file
-                {openingFileName && <span className="text-neutral">({openingFileName})</span>}
-              </button>
-              <button
-                type="button"
-                disabled={!openingText.trim() || extracting}
-                onClick={() => runExtract()}
-                className="flex items-center gap-2 rounded-xl bg-indigo-50 px-3 py-2 text-xs font-semibold text-primary hover:bg-indigo-100 disabled:opacity-50"
-              >
-                <Sparkles className="h-3.5 w-3.5" strokeWidth={1.5} />
-                {extracting ? 'Extracting…' : 'Extract with Advisor'}
-              </button>
-            </div>
-
-            {extractionPreview?.ok && (
-              <div className="mt-4 rounded-xl border border-indigo-200 bg-indigo-50/50 p-4">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs font-semibold text-indigo-900">
-                    Advisor extraction ({extractionPreview.confidence} confidence)
-                  </span>
-                  <button type="button" onClick={() => clearExtraction()} className="text-[10px] text-neutral underline">
-                    Dismiss
-                  </button>
-                </div>
-                <p className="mt-2 text-xs text-slate-700">{extractionPreview.summary}</p>
-                <ul className="mt-2 space-y-1">
-                  {extractionPreview.notes?.map((n) => (
-                    <li key={n} className="text-[11px] text-neutral">
-                      • {n}
-                    </li>
-                  ))}
-                </ul>
-                <div className="mt-3 grid grid-cols-3 gap-2 font-mono text-[10px]">
-                  <div className="rounded-lg bg-white p-2">
-                    <div className="text-neutral">Their ask</div>
-                    <div className="font-semibold text-slate-900">
-                      {deal.currency}
-                      {extractionPreview.extracted.currentAsk?.toLocaleString()}
-                    </div>
-                  </div>
-                  <div className="rounded-lg bg-white p-2">
-                    <div className="text-neutral">Sugg. target</div>
-                    <div className="font-semibold text-slate-900">
-                      {deal.currency}
-                      {extractionPreview.extracted.targetPrice?.toLocaleString()}
-                    </div>
-                  </div>
-                  <div className="rounded-lg bg-white p-2">
-                    <div className="text-neutral">Sugg. walkaway</div>
-                    <div className="font-semibold text-slate-900">
-                      {deal.currency}
-                      {extractionPreview.extracted.walkawayPrice?.toLocaleString()}
-                    </div>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleApplyExtraction}
-                  className="mt-3 w-full rounded-xl bg-primary py-2 text-xs font-semibold text-white hover:bg-indigo-600"
-                >
-                  Apply suggested values
-                </button>
-              </div>
-            )}
-          </div>
         </div>
 
         <div className="space-y-4">
@@ -360,14 +422,13 @@ export default function Setup() {
                 Advisor Link
                 <HelpTip label="What is Advisor Link?" variant="info" className="on-dark">
                   <p>
-                    <strong>You</strong> stay on this page as the principal. <strong>ChatGPT</strong> (opened on the
-                    same URL in its in-app browser) acts as your external advisor — it reads state and calls WebMCP
-                    tools like <code className="font-mono">propose_offer</code>, but cannot bypass your walkaway
-                    without the HITL approval modal.
+                    <strong>You</strong> stay on this page as the principal. Your chosen advisor opens the same URL
+                    and calls WebMCP tools like <code className="font-mono">propose_offer</code>, but cannot bypass
+                    your walkaway without the HITL approval modal.
                   </p>
                   <p className="mt-2">
-                    This toggle is your intent flag. The in-page advisor panel works either way; WebMCP tools register
-                    when the browser supports <code className="font-mono">document.modelContext</code>.
+                    For this hackathon only <strong>ChatGPT</strong> is active. Other advisors are listed for a later
+                    release and stay disabled.
                   </p>
                   <p className="mt-2 text-emerald-300">
                     Status: {webmcpReady ? 'WebMCP tools registered' : 'WebMCP not detected in this browser'}
@@ -393,9 +454,33 @@ export default function Setup() {
               </button>
             </div>
             <p className="mt-3 text-xs leading-relaxed text-slate-400">
-              ON = plan to use ChatGPT on this URL as your advisor agent. See tooltip for the 3-role model (you /
-              counterparty / advisor).
+              ON = use an external advisor on this URL. Pick which one below (ChatGPT only for now).
             </p>
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              {ADVISOR_OPTIONS.map((opt) => {
+                const selected = advisorProvider === opt.id
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    disabled={!opt.enabled || !advisor}
+                    onClick={() => opt.enabled && setAdvisorProvider(opt.id)}
+                    title={opt.enabled ? opt.detail : `${opt.label} — ${opt.detail}`}
+                    className={clsx(
+                      'rounded-lg border px-2.5 py-2 text-left transition',
+                      !opt.enabled || !advisor
+                        ? 'cursor-not-allowed border-slate-700 bg-slate-800/50 text-slate-500'
+                        : selected
+                          ? 'border-primary bg-primary/20 text-white'
+                          : 'border-slate-600 bg-slate-800 text-slate-200 hover:border-slate-500',
+                    )}
+                  >
+                    <div className="text-xs font-semibold">{opt.label}</div>
+                    <div className="mt-0.5 font-mono text-[10px] opacity-80">{opt.detail}</div>
+                  </button>
+                )
+              })}
+            </div>
           </div>
 
           <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-card">

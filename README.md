@@ -27,10 +27,13 @@ Humans set a **mandate** (target, walkaway, concessions). A counterparty agent r
 
 ```bash
 npm install
+cp .env.example .env.local   # add TAVILY_API_KEY + NEBIUS_API_KEY (server only)
 npm run dev
 ```
 
-Open http://localhost:5173
+Open http://127.0.0.1:5173
+
+Keys are read by Vite middleware / Vercel `api/*` only — never `VITE_`-prefixed.
 
 **WebMCP local testing:** enable `chrome://flags/#enable-webmcp-testing` in Chrome, or use ChatGPT’s in-app browser on the deployed URL.
 
@@ -56,8 +59,8 @@ Registered via `document.modelContext.registerTool` in `src/lib/webmcp.js`:
 
 - Vite + React + Tailwind
 - In-browser session store
-- Rule-based counterparty engine (`src/lib/counterpartyEngine.js`)
-- Live market comps via Tavily (`POST /api/market`, key server-side only)
+- Nemotron counterparty on Nebius Token Factory (`POST /api/counterparty`), with rule-engine fallback
+- Live market comps via Tavily (same route + opening `POST /api/market`)
 - Deployed on Vercel
 
 ---
@@ -69,16 +72,18 @@ Registered via `document.modelContext.registerTool` in `src/lib/webmcp.js`:
 | [docs/DEMO.md](docs/DEMO.md) | Judge / ChatGPT demo script |
 | [docs/QA.md](docs/QA.md) | Manual test checklist |
 | [docs/DEVPOST_CHECKLIST.md](docs/DEVPOST_CHECKLIST.md) | Submission checklist |
-| [docs/VIDEO_SCRIPT.md](docs/VIDEO_SCRIPT.md) | Recorded demo script |
+| [docs/VIDEO_SCRIPT.md](docs/VIDEO_SCRIPT.md) | v1 recorded demo script (WebMCP) |
+| [docs/VIDEO_V2.md](docs/VIDEO_V2.md) | Nebius demo video brief — v1 lessons + beat sheet |
 | [docs/HACKATHON_PLAN.md](docs/HACKATHON_PLAN.md) | Nebius × NVIDIA DealTable v2 crib sheet |
 
 ---
 
 ## Honest scope (hackathon build)
 
-- Counterparty replies are still **rule-based**. Market comps are a live Tavily search shown beside that reply.
+- Counterparty replies come from **Nemotron Nano** on Token Factory when keys are set; otherwise the rule engine.
+- Market comps are a live Tavily search shown with the reply.
 - Session state is **in-browser only** (refresh resets).
-- Next: Nemotron on Token Factory cites those comps. The walkaway gate stays in front of the model.
+- Walkaway HITL still runs in the browser before any model call.
 
 ---
 

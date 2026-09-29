@@ -7,12 +7,15 @@ import Hub from './pages/Hub.jsx'
 import Advisor from './pages/Advisor.jsx'
 import Audit from './pages/Audit.jsx'
 import Summary from './pages/Summary.jsx'
+import Playbook from './pages/Playbook.jsx'
 import { useDeal } from './lib/useDeal.js'
 
 function PageRouter({ route }) {
   switch (route) {
     case 'entrance':
       return <Entrance />
+    case 'playbook':
+      return <Playbook />
     case 'custom':
       return <CustomScenario />
     case 'setup':
