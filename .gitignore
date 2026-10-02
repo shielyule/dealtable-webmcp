@@ -6,3 +6,4 @@ dist
 *.mov
 # Never commit API crib sheets / keys
 dealtable-v2 - Nebius Token Factory - API key/
+.env*

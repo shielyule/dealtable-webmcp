@@ -34,13 +34,21 @@ function PageRouter({ route }) {
 }
 
 export default function App() {
-  const { route, status, deal, hitlOpen } = useDeal()
+  const { route, status, deal, hitlOpen, waiver } = useDeal()
+  const waiverActive = Boolean(waiver?.active)
 
   useEffect(() => {
     import('./lib/webmcp.js')
       .then(({ registerNegotiationTools }) => registerNegotiationTools())
       .catch(() => {})
   }, [])
+
+  // Re-tick tool surface when waiver appears/disappears (WebMCP browsers).
+  useEffect(() => {
+    import('./lib/webmcp.js')
+      .then(({ registerNegotiationTools }) => registerNegotiationTools())
+      .catch(() => {})
+  }, [waiverActive])
 
   return (
     <AppShell route={route} status={status} sessionId={deal?.sessionId} hitlOpen={hitlOpen}>

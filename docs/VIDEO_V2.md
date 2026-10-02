@@ -39,8 +39,8 @@ Adapt numbers to the scenario you film (lease, freelance, insurance, etc.). One 
 | **Problem** | 10s | Home or one slide | “You set a walkaway; agents shouldn’t cross it without you.” |
 | **Mandate** | 15s | Setup fields | “Target, walkaway, concessions — the rules of the deal.” |
 | **Agent + evidence** | ~30–40s | Counterparty reply + **Market check · Tavily** | “The other side answers with live comps — not a canned script.” *(Nebius: Nemotron counterparty; show source link on screen.)* |
-| **Advisor / tools** *(if WebMCP in cut)* | ~20–30s | ChatGPT tool call → chat moves | “Advisor calls typed tools on the page, not the DOM.” |
-| **HITL** | 20s | Modal → Approve | “Below walkaway — hard stop.” |
+| **Scoped waiver** | ~25s | Below-walkaway → **Grant waiver** card (floor + time) → Agent authority panel | “Below the floor they ask for a scoped waiver — you edit, grant, tools appear; revoke and they vanish.” |
+| **Advisor / tools** *(if WebMCP in cut)* | ~20s | ChatGPT tool call → chat moves | “Advisor calls typed tools on the page, not the DOM.” |
 | **Close** | 15s | Summary + handoff / export | “Audit trail and closure — practice that becomes paperwork.” |
 
 **Nebius must-show on camera:** Tavily-backed line in the counterparty reply (Market check visible), then walkaway modal blocking a low offer. Both are on the request path for scoring.

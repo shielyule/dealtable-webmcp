@@ -48,6 +48,8 @@ function initialState() {
     personaBehaviors: null,
     closure: null,
     hitlOpen: null,
+    waiver: null,
+    webmcpTools: [],
     webmcpReady: false,
     liveTools: [
       { id: 'comps', label: '@ market comps via Tavily', status: 'idle' },
@@ -579,11 +581,128 @@ export function proposeWinWinTerm(term) {
 }
 
 function crossesWalkaway(price) {
+  clearExpiredWaiver()
   const deal = state.deal
   const n = Number(price)
+  if (!deal || Number.isNaN(n)) return false
+  if (isWaiverLive() && n >= Number(state.waiver.floor)) return false
   // Seller (claim/salary): walkaway is your floor — going below needs approval.
   // Buyer (lease etc.): walkaway is your ceiling — going below needs approval (same numeric test).
   return n < Number(deal.walkawayPrice)
+}
+
+export function isWaiverLive(now = Date.now()) {
+  const w = state.waiver
+  if (!w?.active || w.expiresAt == null) return false
+  if (now >= w.expiresAt) return false
+  return true
+}
+
+function clearExpiredWaiver() {
+  const w = state.waiver
+  if (!w?.active || w.expiresAt == null) return false
+  if (Date.now() < w.expiresAt) return false
+  setState((s) => ({
+    ...s,
+    waiver: null,
+    audit: [
+      ...s.audit,
+      audit('WARNING', 'Waiver expired', 'Scoped walkaway waiver timed out.', { trigger: 'RuleEngine' }),
+    ],
+  }))
+  notifyWebmcpRefresh()
+  return true
+}
+
+export function getWaiver() {
+  clearExpiredWaiver()
+  return isWaiverLive() ? state.waiver : null
+}
+
+/** Grant a time-boxed floor override (Mandate-style scoped authority). */
+export function grantWaiver({ floor, minutes = 15, reason } = {}) {
+  const deal = state.deal
+  if (!deal) return { ok: false, error: 'No active deal.' }
+  const floorN = Number(floor)
+  const mins = Math.max(1, Math.min(60, Number(minutes) || 15))
+  if (Number.isNaN(floorN)) return { ok: false, error: 'Floor must be a number.' }
+  // Floor must be at or below walkaway for buyers (lower number = more concession).
+  // For sellers walkaway is a minimum accept — floor override still means "how far past walkaway."
+  const walk = Number(deal.walkawayPrice)
+  const waiver = {
+    active: true,
+    floor: floorN,
+    minutes: mins,
+    grantedAt: Date.now(),
+    expiresAt: Date.now() + mins * 60 * 1000,
+    walkawayWas: walk,
+    reason: reason || 'Human granted scoped walkaway waiver.',
+  }
+  setState((s) => ({
+    ...s,
+    waiver,
+    audit: [
+      ...s.audit,
+      audit('STATE_MUTATION', 'Waiver granted', `Floor ${formatMoney(deal, floorN)} for ${mins}m`, {
+        trigger: 'You',
+        json: { floor: floorN, minutes: mins, expiresAt: waiver.expiresAt },
+      }),
+    ],
+  }))
+  notifyWebmcpRefresh()
+  return { ok: true, waiver, state: snapshot() }
+}
+
+export function revokeWaiver({ reason } = {}) {
+  if (!state.waiver?.active) return { ok: false, error: 'No active waiver.' }
+  setState((s) => ({
+    ...s,
+    waiver: null,
+    audit: [
+      ...s.audit,
+      audit('WARNING', 'Waiver revoked', reason || 'Human revoked scoped authority.', { trigger: 'You' }),
+    ],
+  }))
+  notifyWebmcpRefresh()
+  return { ok: true, state: snapshot() }
+}
+
+/** Agent asks for a scoped waiver — human edits then grants on the page. */
+export function proposeWaiver({ floor, minutes = 15, reason } = {}) {
+  const deal = state.deal
+  if (!deal) return { ok: false, error: 'No active deal.' }
+  const floorN = Number(floor ?? deal.walkawayPrice - 1)
+  const mins = Math.max(1, Math.min(60, Number(minutes) || 15))
+  return {
+    ok: false,
+    needsHitl: true,
+    kind: 'waiver',
+    reason:
+      reason ||
+      `Agent requests a scoped waiver down to ${formatMoney(deal, floorN)} for ${mins} minutes (walkaway ${formatMoney(deal, deal.walkawayPrice)}).`,
+    pending: {
+      kind: 'waiver',
+      floor: floorN,
+      minutes: mins,
+      note: reason,
+    },
+  }
+}
+
+let webmcpRefresh = null
+export function onWebmcpRefresh(fn) {
+  webmcpRefresh = fn
+}
+function notifyWebmcpRefresh() {
+  try {
+    webmcpRefresh?.()
+  } catch {
+    /* ignore */
+  }
+}
+
+export function setWebmcpTools(names) {
+  setState({ webmcpTools: Array.isArray(names) ? names : [] })
 }
 
 function formatOfferLine(deal, price, termYears) {
@@ -724,8 +843,25 @@ export function openHitl(payload) {
     payload.reason ??
     pending.reason ??
     'This action requires your explicit approval.'
+  const kind = pending.kind || payload.kind || 'propose'
+  const title =
+    kind === 'waiver'
+      ? 'Scoped waiver — shape authority before grant'
+      : kind === 'accept'
+        ? 'Accept offer — approval required'
+        : 'Walkaway breach — grant a scoped waiver?'
   setState({
-    hitlOpen: { title: 'Mandate breach — approval required', body: reason, pending },
+    hitlOpen: {
+      title,
+      body: reason,
+      pending: {
+        ...pending,
+        kind,
+        // Defaults for the waiver card when approving a below-walkaway propose
+        floor: pending.floor ?? pending.price ?? state.deal?.walkawayPrice,
+        minutes: pending.minutes ?? 15,
+      },
+    },
   })
 }
 
@@ -737,7 +873,11 @@ function unwrapHitlPending(raw) {
   return raw
 }
 
-export function resolveHitl(approved) {
+/**
+ * Resolve HITL. For walkaway/waiver kinds, `overrides` may include edited { floor, minutes }.
+ * Approving a below-walkaway propose grants a scoped waiver then applies the offer.
+ */
+export function resolveHitl(approved, overrides = {}) {
   const pending = unwrapHitlPending(state.hitlOpen?.pending)
   if (!pending) {
     setState({ hitlOpen: null })
@@ -754,12 +894,30 @@ export function resolveHitl(approved) {
     }))
     return { ok: false, cancelled: true }
   }
+
   if (pending.kind === 'accept') {
     setState({ hitlOpen: null })
     return acceptTerm({ label: pending.label, summary: pending.note })
   }
+
+  if (pending.kind === 'waiver') {
+    const floor = Number(overrides.floor ?? pending.floor)
+    const minutes = Number(overrides.minutes ?? pending.minutes ?? 15)
+    setState({ hitlOpen: null })
+    return grantWaiver({ floor, minutes, reason: pending.note })
+  }
+
+  // Below-walkaway propose → grant scoped waiver covering this offer, then apply.
+  const floor = Number(overrides.floor ?? pending.price)
+  const minutes = Number(overrides.minutes ?? pending.minutes ?? 15)
+  setState({ hitlOpen: null })
+  grantWaiver({
+    floor,
+    minutes,
+    reason: `Waiver for offer at ${pending.price}`,
+  })
   applyOffer(pending.price, pending.termYears, pending.note)
-  return { ok: true, override: true, state: snapshot() }
+  return { ok: true, override: true, waiver: true, state: snapshot() }
 }
 
 export function snapshot() {
@@ -782,6 +940,16 @@ export function snapshot() {
           primaryGoal: s.primaryGoal,
         }
       : null,
+    waiver: isWaiverLive()
+      ? {
+          active: true,
+          floor: s.waiver.floor,
+          minutes: s.waiver.minutes,
+          expiresAt: s.waiver.expiresAt,
+          expiresInSec: Math.max(0, Math.round((s.waiver.expiresAt - Date.now()) / 1000)),
+        }
+      : null,
+    webmcpTools: s.webmcpTools || [],
     live: s.deal
       ? { currentAsk: s.deal.currentAsk, termYears: s.deal.termYears, unit: s.deal.unit }
       : null,
