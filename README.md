@@ -75,6 +75,7 @@ Registered via `document.modelContext.registerTool` in `src/lib/webmcp.js`:
 | [docs/VIDEO_SCRIPT.md](docs/VIDEO_SCRIPT.md) | v1 recorded demo script (WebMCP) |
 | [docs/VIDEO_V2.md](docs/VIDEO_V2.md) | Nebius demo video brief — v1 lessons + beat sheet |
 | [docs/HACKATHON_PLAN.md](docs/HACKATHON_PLAN.md) | Nebius × NVIDIA DealTable v2 crib sheet |
+| [docs/TOKEN_FACTORY_CRIB.md](docs/TOKEN_FACTORY_CRIB.md) | Catch-up tutorials: Token Factory, Nemotron, Tavily |
 
 ---
 

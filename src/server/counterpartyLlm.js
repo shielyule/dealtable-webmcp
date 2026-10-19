@@ -5,7 +5,7 @@ export const NEMOTRON_MODEL = 'nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B'
 export const TOKEN_FACTORY_BASE = 'https://api.tokenfactory.nebius.com/v1'
 
 const META_LEAK =
-  /\b(we need to respond|must return json|must be 1-3|system prompt|proposedPrice|stay in character|as harper agent|as apex agent|pushing back, negotiating|no currency symbols)\b/i
+  /\b(we need to respond|must return json|must be 1-3|system prompt|stay in character|pushing back, negotiating|no currency symbols|as an ai|output contract)\b/i
 
 function buildSystemPrompt(persona, deal, sources) {
   const behaviors = (persona.behaviors || []).map((b) => `- ${b}`).join('\n') || '- Stay firm but professional.'
@@ -80,7 +80,7 @@ function stripReasoning(raw) {
 }
 
 function looksLikeDialogue(text) {
-  if (!text || text.length < 8) return false
+  if (!text || text.length < 4) return false
   if (META_LEAK.test(text)) return false
   if (/^\s*\{/.test(text)) return false
   return true
@@ -90,11 +90,28 @@ function tryParseJsonObject(candidate) {
   const start = candidate.indexOf('{')
   const end = candidate.lastIndexOf('}')
   if (start === -1 || end <= start) return null
+  const slice = candidate.slice(start, end + 1)
   try {
-    return JSON.parse(candidate.slice(start, end + 1))
+    return JSON.parse(slice)
   } catch {
-    return null
+    // Trailing commas / smart quotes — light repair
+    try {
+      return JSON.parse(
+        slice
+          .replace(/[“”]/g, '"')
+          .replace(/[‘’]/g, "'")
+          .replace(/,\s*([}\]])/g, '$1'),
+      )
+    } catch {
+      return null
+    }
   }
+}
+
+function coercePrice(value) {
+  if (typeof value === 'number' && Number.isFinite(value) && value > 0) return value
+  const n = Number(String(value ?? '').replace(/[,$£€\s]/g, ''))
+  return Number.isFinite(n) && n > 0 ? n : NaN
 }
 
 function parseModelJson(raw) {
@@ -103,21 +120,40 @@ function parseModelJson(raw) {
   const candidate = (fenced ? fenced[1] : text).trim()
   const parsed = tryParseJsonObject(candidate)
   if (parsed) {
-    const replyText = String(parsed.text || '').trim()
-    const proposedPrice = Number(parsed.proposedPrice)
-    if (looksLikeDialogue(replyText) && Number.isFinite(proposedPrice) && proposedPrice > 0) {
+    const replyText = String(parsed.text || parsed.message || parsed.reply || '').trim()
+    const proposedPrice = coercePrice(parsed.proposedPrice ?? parsed.price ?? parsed.ask)
+    if (looksLikeDialogue(replyText) && Number.isFinite(proposedPrice)) {
       return { text: replyText, proposedPrice }
+    }
+    // Price OK but text meta-leaked — still salvage a short counter line
+    if (Number.isFinite(proposedPrice) && proposedPrice > 0) {
+      const cleaned = replyText.replace(META_LEAK, '').trim()
+      if (cleaned.length >= 8 && !META_LEAK.test(cleaned)) {
+        return { text: cleaned, proposedPrice }
+      }
+      return {
+        text: `Our best path is ${proposedPrice}.`,
+        proposedPrice,
+      }
     }
   }
 
   const priceMatch =
     text.match(/"proposedPrice"\s*:\s*([0-9]+(?:\.[0-9]+)?)/i) ||
-    text.match(/proposedPrice\s*[:=]\s*([0-9]+(?:\.[0-9]+)?)/i)
+    text.match(/proposedPrice\s*[:=]\s*([0-9]+(?:\.[0-9]+)?)/i) ||
+    text.match(/"price"\s*:\s*([0-9]+(?:\.[0-9]+)?)/i)
   const textMatch = text.match(/"text"\s*:\s*"((?:\\.|[^"\\])*)"/i)
-  const proposedPrice = priceMatch ? Number(priceMatch[1]) : NaN
-  if (textMatch && Number.isFinite(proposedPrice) && proposedPrice > 0) {
-    const replyText = JSON.parse(`"${textMatch[1]}"`)
-    if (looksLikeDialogue(replyText)) return { text: replyText, proposedPrice }
+  const proposedPrice = priceMatch ? coercePrice(priceMatch[1]) : NaN
+  if (textMatch && Number.isFinite(proposedPrice)) {
+    try {
+      const replyText = JSON.parse(`"${textMatch[1]}"`)
+      if (looksLikeDialogue(replyText)) return { text: replyText, proposedPrice }
+      if (Number.isFinite(proposedPrice)) {
+        return { text: `Our best path is ${proposedPrice}.`, proposedPrice }
+      }
+    } catch {
+      /* fall through */
+    }
   }
 
   throw new Error('Model did not return usable dialogue JSON')
@@ -132,13 +168,13 @@ async function callNemotron({ system, user, apiKey }) {
     },
     body: JSON.stringify({
       model: NEMOTRON_MODEL,
-      temperature: 0.2,
-      max_tokens: 400,
+      temperature: 0.15,
+      max_tokens: 500,
       messages: [
         { role: 'system', content: system },
         {
           role: 'user',
-          content: `${user}\n\nJSON only. Example: {"text":"That is below our corridor comps. Best we can do is 50.","proposedPrice":50}`,
+          content: `${user}\n\nReturn ONLY valid JSON (no markdown). Example: {"text":"That is below our corridor comps. Best we can do is 50.","proposedPrice":50}`,
         },
       ],
     }),
@@ -152,14 +188,17 @@ async function callNemotron({ system, user, apiKey }) {
 
   const message = data?.choices?.[0]?.message || {}
   const primary = stripReasoning(contentFromParts(message.content))
-  try {
-    return parseModelJson(primary)
-  } catch (primaryErr) {
-    // Nemotron Nano sometimes parks the JSON in reasoning; use it only for parse, never as chat text raw.
-    const reasoning = typeof message.reasoning === 'string' ? message.reasoning : ''
-    if (!reasoning.trim()) throw primaryErr
-    return parseModelJson(reasoning)
+  const reasoning = typeof message.reasoning === 'string' ? message.reasoning : ''
+  const attempts = [primary, reasoning, `${primary}\n${reasoning}`].filter((s) => String(s || '').trim())
+  let lastErr
+  for (const attempt of attempts) {
+    try {
+      return parseModelJson(attempt)
+    } catch (err) {
+      lastErr = err
+    }
   }
+  throw lastErr || new Error('Model did not return usable dialogue JSON')
 }
 
 export async function generateCounterpartyReply(input, { nebiusKey, tavilyKey }) {
