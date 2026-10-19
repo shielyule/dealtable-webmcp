@@ -78,6 +78,8 @@ You’re negotiating **down** from 52 toward 45. The walkaway is “don’t go l
 **SAY:**  
 *"If I push below my walkaway — thirty-nine, under forty — DealTable doesn’t quietly accept. It opens a scoped waiver: I set the lowest floor I’ll allow and how long that authority lasts, then grant or reject. Agents ask; humans shape the boundary."*
 
+**Filming tip:** The **first** landlord reply (with Market check, no fallback) already proves Nemotron + Tavily. After **Grant waiver**, go straight to **Accept** if you want — don’t wait on their next bubble. A second API call after $39 can occasionally show Rule-engine fallback; scrap that bubble from the cut if it appears.
+
 ---
 
 ### 5. Close `[~20 sec]`

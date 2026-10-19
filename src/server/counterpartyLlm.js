@@ -54,9 +54,16 @@ function buildUserPrompt(input) {
   if (input.kind === 'instruction') {
     return `Transcript:\n${lines}\n\nLatest principal message: ${input.instruction}\nGive your counter as JSON.`
   }
+  const offer = Number(input.price)
+  const ask = Number(input.deal?.currentAsk)
+  const lowballHint =
+    Number.isFinite(offer) && Number.isFinite(ask) && offer < ask * 0.85
+      ? ' Their offer is far below your ask — reject or counter partway; do not collapse to their number. Still return JSON only.'
+      : ''
+
   return `Transcript:\n${lines}\n\nThe principal offered ${formatAmount(input.deal, input.price)}${
     input.termYears ? ` / ${input.termYears}yr` : ''
-  }${input.note ? ` — note: ${input.note}` : ''}.
+  }${input.note ? ` — note: ${input.note}` : ''}.${lowballHint}
 Give your counter as JSON.`
 }
 
@@ -223,12 +230,22 @@ export async function generateCounterpartyReply(input, { nebiusKey, tavilyKey })
   const sources = market.sources || []
   const marketError = market.error || null
 
-  try {
-    const parsed = await callNemotron({
+  const topSources = sources.slice(0, 3)
+  const run = (sourceSlice) =>
+    callNemotron({
       apiKey: nebiusKey,
-      system: buildSystemPrompt(persona, deal, sources),
+      system: buildSystemPrompt(persona, deal, sourceSlice),
       user: buildUserPrompt({ ...input, deal }),
     })
+
+  try {
+    let parsed
+    try {
+      parsed = await run(sources)
+    } catch (firstErr) {
+      // Second turn (e.g. after a lowball / waiver) sometimes breaks JSON — one tight retry.
+      parsed = await run(topSources)
+    }
 
     return {
       author,
